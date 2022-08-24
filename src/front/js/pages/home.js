@@ -2,12 +2,16 @@ import React, { useContext } from "react";
 import { Context } from "../store/appContext";
 import rigoImageUrl from "../../img/rigo-baby.jpg";
 import "../../styles/home.css";
+import { useEffect } from "react";
 
 export const Home = () => {
 	const { store, actions } = useContext(Context);
+	useEffect(() => {
+
+	}, [])
 
 	return (
-		<div className="text-center mt-5">
+		<div className="text-center mt-5 ">
 			<h1>Hello Rigo!!</h1>
 			<p>
 				<img src={rigoImageUrl} />
@@ -21,6 +25,8 @@ export const Home = () => {
 					Read documentation
 				</a>
 			</p>
+
+
 		</div>
 	);
 };

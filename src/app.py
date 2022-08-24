@@ -2,15 +2,22 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 import os
-from flask import Flask, request, jsonify, url_for, send_from_directory
+from flask import Flask, request, jsonify, url_for, send_from_directory, render_template
 from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
 from api.utils import APIException, generate_sitemap
-from api.models import db
+from api.models import db, User
 from api.routes import api
 from api.admin import setup_admin
 from api.commands import setup_commands
+
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import timedelta
+
+
+
 
 #from models import Person
 
@@ -29,6 +36,10 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 MIGRATE = Migrate(app, db, compare_type = True)
 db.init_app(app)
+
+jwt= JWTManager(app)
+
+app.config['JWT_SECRET_KEY']= 'dc7d98009d61ac52e4d1b64de55b7165' #secret-key https://www.md5.cz/
 
 # Allow CORS requests to this API
 CORS(app)
@@ -63,6 +74,67 @@ def serve_any_other_file(path):
     response.cache_control.max_age = 0 # avoid cache memory
     return response
 
+
+
+@app.route('/api/register', methods=['POST'])
+def register():
+    
+    name = request.json.get('name',"")
+    email = request.json.get('email')
+    password = request.json.get('password')
+
+    user = User.query.filter_by(email=email).first()
+    if user: return jsonify({"msg":"email ya esta en uso"}),400
+
+    user=User()
+    user.name =name
+    user.email = email
+    user.password = generate_password_hash(password)
+    user.save()
+
+    return jsonify({"msg":"usuario registrado, por favor inicie session"}), 201
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    email = request.json.get('email')
+    password = request.json.get('password')
+
+    user = User.query.filter_by(email=email, isActive=True).first()
+    if not user:
+        return jsonify({"msg":"Usuario/Contraseña no coinciden"}), 400
+
+    if not check_password_hash(user.password, password): 
+        return jsonify({"msg":"Usuario/Contraseña no coinciden"}), 400
+
+    #expire = datetime.timedelta(days=3)
+
+    #print(expire)
+
+    access_token  = create_access_token(identity=user.email)
+
+    data ={
+        "access_token":access_token,
+        "user": user.serialize()
+
+    }
+
+    return jsonify(data), 200
+
+
+@app.route('/api/users',methods=['GET'])
+@jwt_required()
+def users():
+    users = User.query.all()
+    users = list(map(lambda user: user.serialize(), users))
+    return jsonify(users), 200
+
+@app.route('/api/private', methods=['GET'])
+@jwt_required()
+def private():
+    identity = get_jwt_identity()
+    user = User.query.filter_by(email=identity).first()
+    return jsonify({"identity":identity, "user": user.serialize}), 200
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
